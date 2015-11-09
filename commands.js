@@ -1,6 +1,12 @@
 var fs = require("fs");
 var path = require("path");
 var http = require("http");
+var request = require("request");
+
+function done(output) {
+    process.stdout.write(output);
+    process.stdout.write('\nprompt > ');
+}
 
 function evaluateCmd(userInput) {
     var userInputArray = userInput.split(" ");
@@ -31,40 +37,39 @@ function evaluateCmd(userInput) {
         case "curl":
             commandLibrary.curl(userInputArray.slice(1));
             break;
+        default:
+            commandLibrary.errorHandler(userInputArray.join(" "));
     }
 }
 
 var commandLibrary = {
     "pwd": function() {
-        process.stdout.write(path.dirname(process.argv[1]));
-        process.stdout.write('\nprompt > ');
+        done(path.dirname(process.argv[1]));
     },
     "date": function() {
         currentDate = new Date().toDateString();
-        process.stdout.write(currentDate);
-        process.stdout.write('\nprompt > ');
+        done(currentDate);
     },
     "ls": function() {
         fs.readdir(".", function(err, files) {
+            var output = "";
             if (err) throw err;
             files.forEach(function(file) {
-                process.stdout.write(file.toString());
+                output += file.toString() + "\t";
             });
-            process.stdout.write('\nprompt > ');
+            done(output);
         });
     },
     "cat": function(fullPath) {
         var fileName = fullPath[0];
         fs.readFile(fileName, function(err, data) {
             if (err) throw err;
-            process.stdout.write(data);
-            process.stdout.write('\nprompt > ');
+            done(data);
         });
     },
     "echo": function(userInput) {
         var env_variable = /\$\w*/.exec(userInput)[0];
-        process.stdout.write(userInput.replace(env_variable, process.env[env_variable.slice(1)]));
-        process.stdout.write('\nprompt > ');
+        done(userInput.replace(env_variable, process.env[env_variable.slice(1)]));
     },
     "head": function(fullPath) {
         var fileName = fullPath[0];
@@ -72,10 +77,7 @@ var commandLibrary = {
             if (err) throw err;
             // console.log("filename", data.toString());
             var dataArr = data.toString().split("\n");
-            console.log("data array:", dataArr);
-
-            process.stdout.write(dataArr.slice(0,5).join("\n"));
-            process.stdout.write('\nprompt > ');
+            done(dataArr.slice(0,5).join("\n"));
         });
     },
     "tail": function(fullPath) {
@@ -84,12 +86,20 @@ var commandLibrary = {
             if (err) throw err;
             var dataArr = data.toString().split("\n");
             var length = dataArr.length;
-            process.stdout.write(dataArr.slice(length - 5).join("\n"));
-            process.stdout.write('\nprompt > ');
+            done(dataArr.slice(length - 5).join("\n"));
         });
     },
-    "curl" : function (url) { //this will be an array..
-       //TODO
+    "curl": function (url) { //this will be an array..
+        rawUrl = url[0];
+        var cleanUrl = rawUrl.match(/^http:\/\//) ? rawUrl : "http://" + rawUrl;
+        request(cleanUrl, function (error, response, body) {
+            if (!error && response.statusCode == 200) {
+                done(body);
+            }
+        });
+    },
+    "errorHandler": function(userInput) {
+      done("-bash: " + userInput + ": command not found");
     }
 };
 
